@@ -39,8 +39,8 @@
 
 #include <video/omapdss.h>
 #include <video/dsscomp.h>
-#include <plat/android-display.h>
 #include <plat/dsscomp.h>
+#include <plat/sgx_omaplfb.h>
 #include "dsscomp.h"
 #include "../dss/dss_features.h"
 #include "../dss/dss.h"
