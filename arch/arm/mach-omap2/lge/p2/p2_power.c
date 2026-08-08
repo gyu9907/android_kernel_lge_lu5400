@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2011 LG Electronics, Inc.
  *
+ * Author: Do-Yeob Kim <doyeob.kim@lge.com>
+ *         Jugwan Eom <jugwan.eom@lge.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as

@@ -30,3 +30,18 @@ config MACH_LGE_P2_P940
 	depends on MACH_LGE_P2
 	default y
 
+config MACH_LGE_P2_SU540
+	bool "LGE P2 SU540 board"
+	depends on MACH_LGE_P2
+
+config MACH_LGE_P2_KU5400
+	bool "LGE P2 KU5400 board"
+	depends on MACH_LGE_P2
+
+config MACH_LGE_P2_LU5400
+	bool "LGE P2 LU5400 board"
+	depends on MACH_LGE_P2
+
+config MACH_LGE_P2_DCM
+	bool "LGE P2 DCM board"
+	depends on MACH_LGE_P2

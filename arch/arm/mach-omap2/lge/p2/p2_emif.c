@@ -3,6 +3,9 @@
  *
  * Copyright (C) 2010 LG Electronic Inc.
  *
+ * Author: Do-Yeob Kim <doyeob.kim@lge.com>
+ *
+ * Based on mach-omap2/board-4430sdp.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -43,6 +46,9 @@ static struct lge_emif_devices emif_devices __initdata = {
 
 int __init lge_emif_init(void)
 {
+	/* LGE_SJIT 2011-12-07 [dojip.kim@lge.com]
+	 * fix the device mapping on reivision
+	 */
 #ifdef CONFIG_MACH_LGE_P2_P940
 	if (system_rev <= LGE_PCB_A) {
 		emif_devices.emif1_devices.cs0_device = &samsung_2G_S4;

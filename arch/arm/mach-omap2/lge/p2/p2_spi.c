@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2010 LG Electronic Inc.
  *
+ * Author: Seungho Park <seungho1.park@lge.com>
+ *         Do-Yeob Kim <doyeob.kim@lge.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -69,10 +71,10 @@ static void ifx_n721_dev_init(void)
 modem_pwron_gpio_request_err:
 	gpio_free(MODEM_GPIO_PWRON);
 modem_reset_gpio_request_err:
-
+//#if 0
 	gpio_free(MODEM_GPIO_AUDIO);
 modem_audio_gpio_request_err:
-
+//#endif
 	gpio_free(IFX_MRDY_GPIO);
 ifx_mrdy_gpio_request_err:
 	gpio_free(IFX_SRDY_GPIO);
@@ -83,6 +85,12 @@ ifx_srdy_gpio_request_err:
 static struct omap2_mcspi_device_config ifxn721_mcspi_config = {
 	.turbo_mode		 = 0,
 	.single_channel	 = 0,	/* 0: slave, 1: master */
+#if 0
+	.mode			 = OMAP2_MCSPI_MASTER,
+	.dma_mode		 = 0,
+	.force_cs_mode	 = 0,
+	.fifo_depth		 = 0,
+#endif
 };
 #else
 #define ifx_n721_dev_init	NULL
@@ -153,6 +161,7 @@ int __init p940_spi_init(void)
 {
 	int ret = 0;
 
+	//ret = lge_set_spi_board(spi_bd_info, ARRAY_SIZE(spi_bd_info));
 	ret = spi_register_board_info(spi_bd_info, ARRAY_SIZE(spi_bd_info));
 	if (ret < 0)
 		return ret;

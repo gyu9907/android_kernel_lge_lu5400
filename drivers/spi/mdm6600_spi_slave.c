@@ -361,6 +361,7 @@ static void create_ril_spi_proc_file(void)
 		ril_spi_proc_file->proc_fops = &ril_spi_proc_ops;
 	}
 	else
+		printk(KERN_INFO "[MUIC] LGE: Hub MUIC proc file create failed!\n");
 }
 
 static void remove_ril_spi_proc_file(void)

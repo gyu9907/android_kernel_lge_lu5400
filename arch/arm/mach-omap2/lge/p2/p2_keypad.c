@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2011 LG Electronic Inc.
  *
+ * Author: Seungho Park <seungho1.park@lge.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -43,6 +44,9 @@ static struct omap4_keypad_platform_data keypad_data = {
 
 static int __init keypad_init(void)
 {
+	/* LGE_SJIT 2011-12-07 [dojip.kim@lge.com]
+	 * fix keypad on revision
+	 */
 #ifdef CONFIG_MACH_LGE_P2_P940
 	if (system_rev <= LGE_PCB_EVB) {
 		keymap_data.keymap = keymap_evb;

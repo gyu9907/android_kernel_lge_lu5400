@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2010 LG Electronics, Inc.
  *
+ * Author: Seungho Park <seungho1.park@lge.com>
+ *         Do-Yeob Kim <doyeob.kim@lge.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -42,6 +44,9 @@ struct omap2_hsmmc_info mmc[] = {
 		.gpio_cd	=	-EINVAL,
 		.gpio_wp	=	-EINVAL,
 		.ocr_mask	=	MMC_VDD_165_195,
+		/* LGE_SJIT 2012-01-09 [dojip.kim@lge.com]
+		 * WiFi doesn't use PM on MMC
+		 */
 		.no_suspend	=	true,
 	},
 	{}	/* Terminator */

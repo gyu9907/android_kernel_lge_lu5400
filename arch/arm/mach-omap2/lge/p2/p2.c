@@ -3,6 +3,9 @@
  *
  * Copyright (C) 2011, 2012 LG Electronics, Inc.
  *
+ * Author: Jugwan Eom <jugwan.eom@lge.com>
+ *
+ * Based on mach-omap2/lge/cosmopolitan/cosmopolitan.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -15,7 +18,15 @@
 #include <mach/omap4-common.h>
 
 #ifdef CONFIG_MACH_LGE_P2_P940
+MACHINE_START(LGE_P2, "LGE P940 board")
+#elif defined(CONFIG_MACH_LGE_P2_SU540)
+MACHINE_START(LGE_P2, "LGE SU540 board")
+#elif defined(CONFIG_MACH_LGE_P2_KU5400)
+MACHINE_START(LGE_P2, "LGE KU5400 board")
+#elif defined(CONFIG_MACH_LGE_P2_LU5400)
 MACHINE_START(LGE_P2, "P940")
+#elif defined(CONFIG_MACH_LGE_P2_DCM)
+MACHINE_START(LGE_P2, "LGE DCM board")
 #else
 #error "Unknown P2 board"
 #endif
