@@ -37,6 +37,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/ratelimit.h>
 #include <linux/gpio.h>
+#include <linux/mutex.h>
 #include <lge/board.h>
 
 #include <plat/sram.h>
@@ -138,6 +139,14 @@ enum omap_color_component {
 };
 
 static void _omap_dispc_set_irqs(void);
+static void dispc_restore_color_calibration(void);
+
+static DEFINE_MUTEX(color_calibration_lock);
+#if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
+/* User gains are relative to the panel's boot-time calibrated gamma table. */
+static int color_calibration_rgb[3] = { 255, 255, 255 };
+static bool color_calibration_active;
+#endif
 
 static inline void dispc_write_reg(const u16 idx, u32 val)
 {
@@ -462,6 +471,7 @@ static void dispc_restore_context(void)
 		RR(DIVISOR);
 
 	/* enable last, because LCD & DIGIT enable are here */
+	dispc_restore_color_calibration();
 	RR(CONTROL);
 	if (dss_has_feature(FEAT_MGR_LCD2))
 		RR(CONTROL2);
@@ -3091,7 +3101,7 @@ u32 dispc_convert_gamma_rgb(int index,u32 temp,int red, int green,int blue)
 					  |(((((temp&0x0000FF00)>>8)*(u32)green)/255)<<8)
 					  |(((((temp&0x00FF0000)>>16)*(u32)red)/255)<<16);
 }
-int dispc_enable_gamma(enum omap_channel ch, u8 gamma)
+static int dispc_enable_gamma_locked(enum omap_channel ch, u8 gamma)
 {
 	//printk("GAMMA	:	table_type is %d, red is %d, green is %d, blue is %d \n",
 	//	lcd_gamma_rgb.table_type,lcd_gamma_rgb.red,lcd_gamma_rgb.green,lcd_gamma_rgb.blue);
@@ -3119,7 +3129,10 @@ int dispc_enable_gamma(enum omap_channel ch, u8 gamma)
 		}
 
 		for (i = 0; i < GAMMA_TBL_SZ; i++) {
-				temp =  GammaTable[i] | (i<<24);
+				temp = dispc_convert_gamma_rgb(i, GammaTable[i],
+						color_calibration_rgb[0],
+						color_calibration_rgb[1],
+						color_calibration_rgb[2]);
 				//if(i == 255)
 					//printk("GAMMA	:	MAX_RGB = %x\n", temp);
 				dispc_write_reg(DISPC_GAMMA_TABLE(channel), temp);
@@ -3141,8 +3154,77 @@ int dispc_enable_gamma(enum omap_channel ch, u8 gamma)
         REG_FLD_MOD(DISPC_CONFIG, !!(enabled & 6), 9, 9);
 
         return 0;
+#else
+	return -EOPNOTSUPP;
 #endif
 }
+
+int dispc_enable_gamma(enum omap_channel ch, u8 gamma)
+{
+	int ret;
+
+	mutex_lock(&color_calibration_lock);
+	ret = dispc_enable_gamma_locked(ch, gamma);
+	mutex_unlock(&color_calibration_lock);
+	return ret;
+}
+
+static void dispc_restore_color_calibration(void)
+{
+#if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
+	mutex_lock(&color_calibration_lock);
+	if (color_calibration_active) {
+		dispc_enable_gamma_locked(OMAP_DSS_CHANNEL_LCD, 0);
+		dispc_enable_gamma_locked(OMAP_DSS_CHANNEL_LCD2, 0);
+	}
+	mutex_unlock(&color_calibration_lock);
+#endif
+}
+
+int omapdss_get_color_calibration(int *red, int *green, int *blue)
+{
+#if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
+	mutex_lock(&color_calibration_lock);
+	*red = color_calibration_rgb[0];
+	*green = color_calibration_rgb[1];
+	*blue = color_calibration_rgb[2];
+	mutex_unlock(&color_calibration_lock);
+	return 0;
+#else
+	return -EOPNOTSUPP;
+#endif
+}
+EXPORT_SYMBOL(omapdss_get_color_calibration);
+
+int omapdss_set_color_calibration(int red, int green, int blue)
+{
+#if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
+	int ret;
+
+	if (red < 0 || red > 255 || green < 0 || green > 255 ||
+			blue < 0 || blue > 255)
+		return -EINVAL;
+
+	/* Power up before taking the lock: context restore takes it too. */
+	ret = dispc_runtime_get();
+	if (ret)
+		return ret;
+
+	mutex_lock(&color_calibration_lock);
+	color_calibration_rgb[0] = red;
+	color_calibration_rgb[1] = green;
+	color_calibration_rgb[2] = blue;
+	color_calibration_active = true;
+	dispc_enable_gamma_locked(OMAP_DSS_CHANNEL_LCD, 0);
+	dispc_enable_gamma_locked(OMAP_DSS_CHANNEL_LCD2, 0);
+	mutex_unlock(&color_calibration_lock);
+	dispc_runtime_put();
+	return 0;
+#else
+	return -EOPNOTSUPP;
+#endif
+}
+EXPORT_SYMBOL(omapdss_set_color_calibration);
 
 int dispc_set_gamma_rgb(enum omap_channel ch, u8 gamma,int red,int green,int blue)
 {

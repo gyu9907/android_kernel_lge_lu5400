@@ -840,6 +840,9 @@ void omapdss_dsi_update_vc_mode(struct omap_dss_device *dssdev, int channel, boo
 
 void omap_dispc_set_first_vsync(enum omap_channel channel, bool enable);
 
+int omapdss_get_color_calibration(int *red, int *green, int *blue);
+int omapdss_set_color_calibration(int red, int green, int blue);
+
 /* generic callback handling */
 static inline void dss_ovl_cb(struct omapdss_ovl_cb *cb, int id, int status)
 {

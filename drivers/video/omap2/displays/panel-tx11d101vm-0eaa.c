@@ -702,25 +702,42 @@ err:
 	return r;
 }
 
-extern int dispc_set_gamma_rgb(enum omap_channel ch, u8 gamma,int red,int green,int blue);
 static ssize_t display_gamma_tuning_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	int red, green, blue, ret;
 
-	return 0;
+	ret = omapdss_get_color_calibration(&red, &green, &blue);
+	if (ret)
+		return ret;
+
+	return scnprintf(buf, PAGE_SIZE, "%d,%d,%d\n", red, green, blue);
 }
 
 static ssize_t display_gamma_tuning_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t size)
 {
-	int red,green,blue;
-	sscanf(buf, "%d,%d,%d",&red,&green,&blue);
-	printk("SJ	:	RED	:	%d	GREEN :		%d	BLUE :		%d\n",red,green,blue);
-	dispc_set_gamma_rgb(OMAP_DSS_CHANNEL_LCD, 0,red,green,blue);
-	dispc_set_gamma_rgb(OMAP_DSS_CHANNEL_LCD2, 0,red,green,blue);
-	return size;
+	char input[32], *next = input, *value;
+	int rgb[3], i, ret;
+
+	if (!size || size >= sizeof(input) || memchr(buf, '\0', size))
+		return -EINVAL;
+	memcpy(input, buf, size);
+	input[size] = '\0';
+
+	for (i = 0; i < ARRAY_SIZE(rgb); i++) {
+		value = strsep(&next, ",");
+		if (!value || kstrtoint(strim(value), 10, &rgb[i]))
+			return -EINVAL;
+	}
+	if (next)
+		return -EINVAL;
+
+	ret = omapdss_set_color_calibration(rgb[0], rgb[1], rgb[2]);
+	return ret ? ret : size;
 }
+
 static DEVICE_ATTR(gamma_tuning, 0660, display_gamma_tuning_show, display_gamma_tuning_store);
 
 static ssize_t show_cabc_available_modes(struct device *dev,
