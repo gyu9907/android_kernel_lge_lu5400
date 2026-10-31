@@ -6725,11 +6725,11 @@ s32 wl_cfg80211_attach_post(struct net_device *ndev)
 	if (wl && !wl_get_drv_status(wl, READY, ndev)) {
 			if (wl->wdev &&
 				wl_cfgp2p_supported(wl, ndev)) {
-#if !defined(WL_ENABLE_P2P_IF)
+/* Advertise the implemented group modes after firmware confirms P2P.
+				 * A separate p2p0 control interface does not remove these modes. */
 				wl->wdev->wiphy->interface_modes |=
 					(BIT(NL80211_IFTYPE_P2P_CLIENT)|
 					BIT(NL80211_IFTYPE_P2P_GO));
-#endif
 				if ((err = wl_cfgp2p_init_priv(wl)) != 0)
 					goto fail;
 
