@@ -146,6 +146,9 @@ static DEFINE_MUTEX(color_calibration_lock);
 /* User gains are relative to the panel's boot-time calibrated gamma table. */
 static int color_calibration_rgb[3] = { 255, 255, 255 };
 static bool color_calibration_active;
+static u32 gamma_profile_tables[3][GAMMA_TBL_SZ];
+static unsigned int gamma_profile;
+static bool gamma_profiles_ready;
 #endif
 
 static inline void dispc_write_reg(const u16 idx, u32 val)
@@ -3286,6 +3289,60 @@ int omapdss_set_color_calibration(int red, int green, int blue)
 }
 EXPORT_SYMBOL(omapdss_set_color_calibration);
 
+int omapdss_get_gamma_profile(void)
+{
+#if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
+	int ret;
+
+	mutex_lock(&color_calibration_lock);
+	ret = gamma_profiles_ready ? (int)gamma_profile : -EAGAIN;
+	mutex_unlock(&color_calibration_lock);
+	return ret;
+#else
+	return -EOPNOTSUPP;
+#endif
+}
+EXPORT_SYMBOL(omapdss_get_gamma_profile);
+
+int omapdss_set_gamma_profile(unsigned int profile)
+{
+#if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
+	/* Serialized by color_calibration_lock, including IRQ completion. */
+	static u32 table[GAMMA_TBL_SZ];
+	int ret, i;
+
+	if (profile >= ARRAY_SIZE(gamma_profile_tables))
+		return -EINVAL;
+	ret = dispc_runtime_get();
+	if (ret)
+		return ret;
+	mutex_lock(&color_calibration_lock);
+	if (!gamma_profiles_ready) {
+		ret = -EAGAIN;
+		goto out;
+	}
+	for (i = 0; i < GAMMA_TBL_SZ; i++)
+		table[i] = dispc_convert_gamma_rgb(i, gamma_profile_tables[profile][i],
+			color_calibration_rgb[0], color_calibration_rgb[1],
+			color_calibration_rgb[2]);
+	ret = dispc_update_gamma_vsync(OMAP_DSS_CHANNEL_LCD, table);
+	if (!ret)
+		ret = dispc_update_gamma_vsync(OMAP_DSS_CHANNEL_LCD2, table);
+	if (!ret) {
+		memcpy(GammaTable, gamma_profile_tables[profile], sizeof(GammaTable));
+		gamma_profile = profile;
+		color_calibration_active = true;
+	}
+out:
+	mutex_unlock(&color_calibration_lock);
+	dispc_runtime_put();
+	return ret;
+#else
+	return -EOPNOTSUPP;
+#endif
+}
+EXPORT_SYMBOL(omapdss_set_gamma_profile);
+
 int dispc_set_gamma_rgb(enum omap_channel ch, u8 gamma,int red,int green,int blue)
 {
 #ifdef CONFIG_ARCH_OMAP4
@@ -3348,6 +3405,40 @@ int dispc_set_gamma_rgb(enum omap_channel ch, u8 gamma,int red,int green,int blu
 #endif
 }
 
+#if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
+/* Code-value luma is a tone-curve approximation, not a panel measurement. */
+static u32 dispc_gamma_luma(u32 rgb)
+{
+	return ((rgb >> 16) & 255) * 2126 +
+		((rgb >> 8) & 255) * 7152 + (rgb & 255) * 722;
+}
+
+static u32 dispc_custom_gamma_entry(u32 rgb, u32 peak)
+{
+	u32 level;
+
+	if (!peak)
+		return 0;
+	level = min_t(u32, 255, (dispc_gamma_luma(rgb) * 255 + peak / 2) / peak);
+	/* Match LiveDisplay's quantized 98%, 87%, 100% gains: 250,222,255. */
+	return ((level * 250 / 255) << 16) | ((level * 222 / 255) << 8) | level;
+}
+
+static void dispc_init_gamma_profiles(void)
+{
+	u32 peak = dispc_gamma_luma(GammaTable[GAMMA_TBL_SZ - 1]);
+	int i;
+
+	memcpy(gamma_profile_tables[0], GammaTable, sizeof(GammaTable));
+	for (i = 0; i < GAMMA_TBL_SZ; i++) {
+		gamma_profile_tables[1][i] = dispc_custom_gamma_entry(GammaTable[i], peak);
+		gamma_profile_tables[2][i] = (i << 16) | (i << 8) | i;
+	}
+	gamma_profile = 0;
+	gamma_profiles_ready = true;
+}
+#endif
+
 void dispc_set_gamma_table()
 {
 	u32 temp;
@@ -3409,6 +3500,9 @@ void dispc_set_gamma_table()
 				for(i=0;i<GAMMA_TBL_SZ;i++)
 					GammaTable[i]=GammaTable_HITACHI[i];
 		}
+#if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
+	dispc_init_gamma_profiles();
+#endif
 }
 
 void dispc_set_tft_data_lines(enum omap_channel channel, u8 data_lines)

@@ -740,6 +740,31 @@ static ssize_t display_gamma_tuning_store(struct device *dev,
 
 static DEVICE_ATTR(gamma_tuning, 0660, display_gamma_tuning_show, display_gamma_tuning_store);
 
+static ssize_t display_gamma_profile_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int profile = omapdss_get_gamma_profile();
+
+	return profile < 0 ? profile : scnprintf(buf, PAGE_SIZE, "%d\n", profile);
+}
+
+static ssize_t display_gamma_profile_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int profile;
+	int ret;
+
+	if (memchr(buf, '\0', count))
+		return -EINVAL;
+	ret = kstrtouint(buf, 10, &profile);
+	if (ret)
+		return ret;
+	ret = omapdss_set_gamma_profile(profile);
+	return ret ? ret : count;
+}
+
+static DEVICE_ATTR(gamma_profile, 0660, display_gamma_profile_show, display_gamma_profile_store);
+
 static ssize_t show_cabc_available_modes(struct device *dev,
 		struct device_attribute *attr,
 		char *buf)
@@ -910,6 +935,7 @@ static struct attribute *tx11d101vm_panel_attrs[] = {
 	&dev_attr_ulps.attr,
 	&dev_attr_ulps_timeout.attr,
     &dev_attr_gamma_tuning.attr,
+    &dev_attr_gamma_profile.attr,
 	NULL,
 };
 

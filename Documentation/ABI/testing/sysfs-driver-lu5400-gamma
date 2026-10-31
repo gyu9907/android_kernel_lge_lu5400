@@ -1,0 +1,18 @@
+What:           /sys/devices/omapdss/display0/gamma_profile
+Date:           October 2026
+Description:
+                Select the LU5400 panel gamma base curve at runtime.
+                0: original LG factory curve (default after boot).
+                1: custom curve retaining the LG weighted tone shape with
+                   R98%, G87%, B100% gains (8-bit white: 250,222,255).
+
+                2: linear identity curve without base color correction.
+
+                Accepts decimal 0, 1 or 2; other values fail. Updates the active
+                LCD at VSYNC without reboot. Selection survives panel power
+                cycling but is not persisted by the kernel across reboot.
+                The device settings boot receiver restores the saved UI selection.
+
+                Existing gamma_tuning RGB gains multiply the
+                selected curve. Use 255,255,255 to compare base profiles.
+                Requires the P2 gamma and runtime calibration options.
