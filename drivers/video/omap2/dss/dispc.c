@@ -3196,10 +3196,65 @@ int omapdss_get_color_calibration(int *red, int *green, int *blue)
 }
 EXPORT_SYMBOL(omapdss_get_color_calibration);
 
+#if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
+struct dispc_gamma_update {
+	const u32 *table;
+	u16 reg;
+	struct completion complete;
+	bool written;
+};
+
+static void dispc_gamma_vsync(void *data, u32 mask)
+{
+	struct dispc_gamma_update *update = data;
+	int i;
+
+	if (update->written)
+		return;
+	for (i = 0; i < GAMMA_TBL_SZ; i++)
+		dispc_write_reg(update->reg, update->table[i]);
+	/* Complete only after posted LUT writes have reached DISPC. */
+	dispc_read_reg(DISPC_IRQSTATUS);
+	update->written = true;
+	complete(&update->complete);
+}
+
+/* Caller holds the runtime reference and color_calibration_lock. */
+static int dispc_update_gamma_vsync(enum omap_channel channel, const u32 *table)
+{
+	struct dispc_gamma_update update;
+	u32 irq;
+	int ret;
+
+	/* Panel enable/context restore will load the saved gains later. */
+	if (!dispc_is_channel_enabled(channel))
+		return 0;
+
+	irq = channel == OMAP_DSS_CHANNEL_LCD ? DISPC_IRQ_VSYNC : DISPC_IRQ_VSYNC2;
+	update.table = table;
+	update.reg = DISPC_GAMMA_TABLE(channel == OMAP_DSS_CHANNEL_LCD ? 0 : 1);
+	update.written = false;
+	init_completion(&update.complete);
+	ret = omap_dispc_register_isr(dispc_gamma_vsync, &update, irq);
+	if (ret)
+		return ret;
+
+	wait_for_completion_timeout(&update.complete, msecs_to_jiffies(100));
+	omap_dispc_unregister_isr(dispc_gamma_vsync, &update, irq);
+	/* The dispatcher copies callbacks before dropping irq_lock. */
+	synchronize_irq(dispc.irq);
+	if (!update.written)
+		return -ETIMEDOUT;
+
+	return 0;
+}
+#endif
+
 int omapdss_set_color_calibration(int red, int green, int blue)
 {
 #if defined(CONFIG_ARCH_OMAP4) && defined(CONFIG_P2_S_CURVE)
-	int ret;
+	u32 table[GAMMA_TBL_SZ];
+	int ret, i;
 
 	if (red < 0 || red > 255 || green < 0 || green > 255 ||
 			blue < 0 || blue > 255)
@@ -3211,15 +3266,20 @@ int omapdss_set_color_calibration(int red, int green, int blue)
 		return ret;
 
 	mutex_lock(&color_calibration_lock);
-	color_calibration_rgb[0] = red;
-	color_calibration_rgb[1] = green;
-	color_calibration_rgb[2] = blue;
-	color_calibration_active = true;
-	dispc_enable_gamma_locked(OMAP_DSS_CHANNEL_LCD, 0);
-	dispc_enable_gamma_locked(OMAP_DSS_CHANNEL_LCD2, 0);
+	for (i = 0; i < GAMMA_TBL_SZ; i++)
+		table[i] = dispc_convert_gamma_rgb(i, GammaTable[i], red, green, blue);
+	ret = dispc_update_gamma_vsync(OMAP_DSS_CHANNEL_LCD, table);
+	if (!ret)
+		ret = dispc_update_gamma_vsync(OMAP_DSS_CHANNEL_LCD2, table);
+	if (!ret) {
+		color_calibration_rgb[0] = red;
+		color_calibration_rgb[1] = green;
+		color_calibration_rgb[2] = blue;
+		color_calibration_active = true;
+	}
 	mutex_unlock(&color_calibration_lock);
 	dispc_runtime_put();
-	return 0;
+	return ret;
 #else
 	return -EOPNOTSUPP;
 #endif
