@@ -289,7 +289,9 @@ int muic_process_retention_mode(struct i2c_client *client)
 		muic_set_mode(MUIC_CP_USB);
 		//muic_set_develop_mode_detect(client);
 	}
-	else if (BOOT_AP_USB == muic_retain_mode) {
+	else if (BOOT_AP_USB == muic_retain_mode ||
+		 BOOT_RECOVERY == muic_retain_mode) {
+		/* Recovery uses the AP gadget, never the modem UART path. */
 		//dev_info(&client->dev, "muic: USB is AP retain\n");
 		muic_set_mode(MUIC_AP_USB);
 		//muic_set_usb_mode_detect(client);
@@ -473,15 +475,9 @@ s32 muic_tsu5611_detect_accessory(struct i2c_client *client, s32 upon_irq)
 
 		case MUIC_AP_USB :
 		case MUIC_CP_USB :
-#if 0
-			if( IDNO_0010 == (int_stat_value & 0x0f) && (!(int_stat_value & VBUS)) ){
-				muic_set_mode(MUIC_AP_UART);
-			}else if ((int_stat_value & VBUS) == 0) {
-#endif
-			{
-				/* USB Host Removed */
+			/* A repeated detection interrupt is not a cable removal. */
+			if (!(int_stat_value & VBUS))
 				muic_set_mode(MUIC_NONE);
-			}
 			break;
 #if defined(CONFIG_MHL_TX_SII9244) || defined(CONFIG_MHL_TX_SII9244_LEGACY)
 		case MUIC_MHL :
@@ -732,17 +728,10 @@ static int __devinit tsu5611_probe(struct i2c_client *client,
 	printk("%s, registering ops\n", __func__);
 	muic_client_dev_register(dev->client->name, dev, &tsu5611_ops);
 
-	/* Initializes MUIC - Finally MUIC INT becomes enabled */
-	if (BOOT_RECOVERY == muic_retain_mode) { /* Recovery mode */
-		muic_mode = MUIC_CP_UART;
-		muic_init_tsu5611(client, BOOTUP);
-		dev_info(&client->dev, "muic: %s: first boot\n", __func__);
-	}
-	else {
-		muic_init_tsu5611(client, BOOTUP);
-		muic_tsu5611_detect_accessory(client, NOT_UPON_IRQ);
-		muic_mode = muic_get_mode();
-	}
+	/* Detect VBUS in recovery too; retention selects AP USB when attached. */
+	muic_init_tsu5611(client, BOOTUP);
+	muic_tsu5611_detect_accessory(client, NOT_UPON_IRQ);
+	muic_mode = muic_get_mode();
 	muic_set_mode(muic_mode);
 
 	/* Makes the interrupt on MUIC INT wake up OMAP which is in suspend mode */
