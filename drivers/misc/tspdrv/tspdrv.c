@@ -411,9 +411,10 @@ static enum hrtimer_restart vibrator_timer_func(struct hrtimer *timer)
 
 static void vibrator_enable(struct timed_output_dev *dev, int value)
 {
-	printk("[tspdrv] %s\n", __func__);
-
 	unsigned long flags;
+	VibeInt8 nForce[1] = {pwmvalue};
+
+	printk("[tspdrv] %s\n", __func__);
 
 	spin_lock_irqsave(&vibe_lock, flags);
 	hrtimer_cancel(&vibe_timer);
@@ -424,6 +425,8 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 	else {
 		value = (value > 15000 ? 15000 : value);
 		ImmVibeSPI_ForceOut_AmpEnable(0);
+		/* Match the strength used by the legacy timed ioctl. */
+		ImmVibeSPI_ForceOut_SetSamples(0, 8, 1, nForce);
 		hrtimer_start(&vibe_timer,
 				ktime_set(value / 1000, (value % 1000) * 1000000),
 				HRTIMER_MODE_REL);
